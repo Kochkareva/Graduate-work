@@ -1,6 +1,6 @@
 enum Race {
   European,
-  AfricanAmerican,
+  African,
   Asian,
   Indian,
   Other

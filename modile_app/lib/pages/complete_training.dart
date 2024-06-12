@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:modile_app/pages/master.dart';
 
 import 'index.dart';
 
@@ -7,8 +6,9 @@ class CompleteTraining extends StatefulWidget {
 
   late bool isSuccess;
   late int countExercises;
+  late List<double> pulse;
 
-  CompleteTraining({super.key, required this.isSuccess, required this.countExercises});
+  CompleteTraining({super.key, required this.isSuccess, required this.countExercises, required this.pulse});
 
   @override
   State<CompleteTraining> createState() => _CompleteTrainingState();
@@ -57,6 +57,7 @@ class _CompleteTrainingState extends State<CompleteTraining> {
       fontWeight: FontWeight.bold,
       fontFamily: 'Montserrat',
     );
+    print(widget.pulse);
     return Scaffold(
       backgroundColor: Theme
           .of(context)
@@ -109,10 +110,10 @@ class _CompleteTrainingState extends State<CompleteTraining> {
                         ),
                         Column(
                           children: [
-                            Text('Максимальное ЧСС', style: textBoldStyle,),
+                            Text('Среднее ЧСС', style: textBoldStyle,),
                             Padding(
                               padding: const EdgeInsets.only(top: 10.0),
-                              child: Text('ЧСС', style: textSubtitleStyle,),
+                              child: Text('${(widget.pulse.reduce((value, element) => value + element) / widget.pulse.length)}', style: textSubtitleStyle,),
                             ),
                           ],
                         ),

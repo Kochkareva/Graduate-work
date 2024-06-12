@@ -72,6 +72,10 @@ class _ExerciseTrainingState extends State<ExerciseTraining> {
     final blackTextStyle = theme.textTheme.displayMedium!.copyWith(
       fontFamily: 'Montserrat',
       fontSize: 14,
+    ); final titleBlackTextStyle = theme.textTheme.displayMedium!.copyWith(
+      fontSize: 20,
+      fontWeight: FontWeight.bold,
+      fontFamily: 'Montserrat',
     );
 
     final whiteColor = Theme
@@ -144,8 +148,8 @@ class _ExerciseTrainingState extends State<ExerciseTraining> {
                               ],
                             ),),
                           Container(
-                            constraints: const BoxConstraints.expand(
-                                height: 560.0),
+                            constraints: BoxConstraints.expand(
+                                height: MediaQuery.of(context).size.height * 0.68),
                             child: Padding(
                               padding: const EdgeInsets.only(left: 10.0, right: 10.0),
                               child: ListView.builder(
@@ -199,11 +203,34 @@ class _ExerciseTrainingState extends State<ExerciseTraining> {
                             padding: const EdgeInsets.only(top: 10.0, left: 30.0, right: 30.0),
                             child: ElevatedButton(
                               onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(builder: (context) => Exercise(exercises: listExercises, intensity: widget.planModel.intensity,)),
-                                );
+                                if(widget.planModel.iFollow){
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (context) => Exercise(exercises: listExercises, intensity: widget.planModel.intensity, planModel: widget.planModel, trainingModel: trainingModel)),
+                                  );
+                                }else{
+                                  showDialog(
+                                    context: context,
+                                    builder: (BuildContext context) {
+                                      return AlertDialog(
+                                        surfaceTintColor: whiteColor,
+                                        title: Text('Внимание', style: titleBlackTextStyle,),
+                                        content: const Text('Чтобы начать заниматься, вам необходимо начать отслеживать план'),
+                                        actions: <Widget>[
+                                          TextButton(
+                                            onPressed: () {
+                                              Navigator.of(context).pop();
+                                            },
+                                            child: const Text('Ок'),
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  );
+                                }
+
                               },
+
                               child: Text('Начать'),
                             ),
                           ),

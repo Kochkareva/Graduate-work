@@ -9,7 +9,6 @@ class GoogleConnect {
 
   Future<bool> checkingPermission() async {
     HealthFactory health = HealthFactory(useHealthConnectIfAvailable: true);
-    // define the types to get
     var types = [
       HealthDataType.HEART_RATE,
       HealthDataType.STEPS,
@@ -32,7 +31,6 @@ class GoogleConnect {
     GoogleSignIn googleSignIn = GoogleSignIn(scopes: [FitnessApi.fitnessActivityReadScope]);
     GoogleSignInAccount? account = await googleSignIn.signIn();
     if (account == null) {
-      // Пользователь не вошел в учетную запись Google
       throw Exception('Пожалуйста, зайдите в учетную запись Google');
     } else {
       print('Пользователь успешно вошел в учетную запись Google, получаем данные из Google Fit API');
@@ -42,8 +40,7 @@ class GoogleConnect {
     }
   }
 
-  Future<int> getHeartRate() async {
-    checkingPermission().then((result) async {
+  Future<double> getHeartRate() async {
       HealthFactory health = HealthFactory(useHealthConnectIfAvailable: true);
       var types = [
         HealthDataType.HEART_RATE,
@@ -55,22 +52,16 @@ class GoogleConnect {
       types = [ HealthDataType.HEART_RATE];
 
       var midnight = DateTime(now.year, now.month, now.day);
-
       List<HealthDataPoint> heartRateData = [];
       try {
         heartRateData = await health.getHealthDataFromTypes(midnight, now, [HealthDataType.HEART_RATE]);
-        for (HealthDataPoint dataPoint in heartRateData) {
-          print('Heart Rate: ${dataPoint.value}');
-        }
-        return heartRateData.last;
+        // for (HealthDataPoint dataPoint in heartRateData) {
+        //   print('Heart Rate: ${dataPoint.value}');
+        // }
+        return double.parse(heartRateData.last.value.toString());
       } catch (e) {
         throw Exception('Ошибка при получении данных о пульсе: $e');
       }
-    }).catchError((error) {
-      log(error.toString());
-      throw Exception('Ошибка при авторизации Google Аккаунта ${error.toString()}');
-    });
-    return 0;
   }
 
 }

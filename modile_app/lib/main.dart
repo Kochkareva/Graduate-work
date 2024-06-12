@@ -6,9 +6,13 @@ import 'package:modile_app/pages/welcome.dart';
 import 'package:provider/provider.dart';
 import 'package:hive/hive.dart';
 import 'package:path_provider/path_provider.dart' as path_provider;
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'logic/google_connect.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await GoogleConnect().checkingPermission();
   final appDocumentDirectory = await path_provider.getApplicationDocumentsDirectory();
   Hive.init(appDocumentDirectory.path);
   Hive.registerAdapter(JwtTokenModelAdapter());
@@ -45,6 +49,13 @@ class MyApp extends StatelessWidget {
           ),
         ),
         home: const Welcome(),
+        localizationsDelegates: [
+          GlobalMaterialLocalizations.delegate
+        ],
+        supportedLocales: [
+          const Locale('ru')
+        ],
+
         // home: const Index(),
       ),
     );

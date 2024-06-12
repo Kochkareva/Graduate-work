@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:modile_app/contracts/enums/race_enum.dart';
 import 'package:modile_app/models/user_model.dart';
+import 'package:modile_app/pages/health_tracker.dart';
+import 'package:modile_app/pages/medical_card.dart';
+import 'package:modile_app/storages/jwt_token_storage.dart';
 
 class PersonalData extends StatefulWidget {
   const PersonalData({super.key});
@@ -16,7 +19,7 @@ class _PersonalDataState extends State<PersonalData> {
 
   @override
   void initState() {
-    userModel = UserModel(0, email: 'email', userName: 'Имя пользователя', password: 'password', rePassword: 'rePassword',
+    userModel = UserModel(0, email: 'email', userName: getUserName().toString(), password: 'password', rePassword: 'rePassword',
         dateOfBirth: DateTime(2022, 10, 1), gender: 'gender', race: Race.European);
     super.initState();
   }
@@ -92,38 +95,27 @@ class _PersonalDataState extends State<PersonalData> {
                 padding: EdgeInsets.zero,
                 children: <Widget>[
                   ListTile(
-                    leading: Icon(Icons.insert_chart, color: blueColor),
-                    title: Text('Графики', style: textSubtitleStyle,),
-                    onTap: () {
-                      // Добавьте здесь обработчик для пункта "Графики"
-                    },
-                  ),
-                  ListTile(
                     leading: Icon(Icons.person, color: blueColor),
                     title: Text('Медицинская карта', style: textSubtitleStyle,),
                     onTap: () {
-                      // Добавьте здесь обработчик для пункта "Данные пользователя"
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const MedicalCard(),
+                        ),
+                      );
                     },
                   ),
                   ListTile(
                     leading: Icon(Icons.dynamic_feed, color: blueColor),
                     title: Text('Трекер здоровья', style: textSubtitleStyle,),
                     onTap: () {
-                      // Добавьте здесь обработчик для пункта "Динамичные данные пользователя"
-                    },
-                  ),
-                  ListTile(
-                    leading: Icon(Icons.lock, color: blueColor),
-                    title: Text('Смена пароля', style: textSubtitleStyle,),
-                    onTap: () {
-                      // Добавьте здесь обработчик для пункта "Смена пароля"
-                    },
-                  ),
-                  ListTile(
-                    leading: Icon(Icons.create, color: blueColor),
-                    title: Text('Создать свой план тренировок', style: textSubtitleStyle,),
-                    onTap: () {
-                      // Добавьте здесь обработчик для пункта "Смена пароля"
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const HealthTracker(),
+                        ),
+                      );
                     },
                   ),
                   ListTile(

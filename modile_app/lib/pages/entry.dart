@@ -52,11 +52,19 @@ class _AuthorizationState extends State<Authorization> {
 
   String username = '';
   String password = '';
+  bool _isObscure = true;
+  TextEditingController _usernameController = TextEditingController();
 
   Map<String, String> fieldMap = {
     'username': 'Имя пользователя',
     'password': 'Пароль',
   };
+
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    super.dispose();
+  }
 
   bool _isFieldEmpty(String field) {
     switch (field) {
@@ -67,6 +75,10 @@ class _AuthorizationState extends State<Authorization> {
       default:
         return false;
     }
+  }
+
+  void _clearUsername() {
+    _usernameController.clear();
   }
 
   Future<void> loginUser() async {
@@ -93,9 +105,13 @@ class _AuthorizationState extends State<Authorization> {
       child: Column(
         children: [
           TextField(
+            controller: _usernameController,
             decoration: InputDecoration(
               prefixIcon: const Icon(Icons.person),
-              suffixIcon: const Icon(Icons.clear),
+              suffixIcon: IconButton(
+                icon: const Icon(Icons.clear),
+                onPressed: _clearUsername,
+              ),
               labelText: 'Имя пользователя',
               hintText: 'Ваше имя',
               border: OutlineInputBorder(
@@ -114,7 +130,14 @@ class _AuthorizationState extends State<Authorization> {
             child: TextField(
               decoration: InputDecoration(
                 prefixIcon: const Icon(Icons.lock),
-                suffixIcon: Icon(Icons.remove_red_eye_outlined, color: Theme.of(context).colorScheme.primary,),
+                suffixIcon: IconButton(
+                  icon: Icon(_isObscure ? Icons.visibility : Icons.visibility_off, color: Theme.of(context).colorScheme.primary,),
+                  onPressed: (){
+                    setState(() {
+                      _isObscure = !_isObscure;
+                    });
+                  },
+                ),
                 labelText: 'Пароль',
                 hintText: 'Пароль',
                 border: OutlineInputBorder(
@@ -124,6 +147,7 @@ class _AuthorizationState extends State<Authorization> {
                 labelStyle: const TextStyle(fontSize: 14),
                 hintStyle: const TextStyle(fontSize: 14),
               ),
+              obscureText: _isObscure,
               onChanged: (value) {
                 password = value;
               },

@@ -1,26 +1,26 @@
-import 'dart:convert';
 import 'package:modile_app/contracts/enums/race_enum.dart';
 
+/// Модель для представления данных пользователя.
 class UserModel {
 
+  /// Уникальный идентификатор пользователя.
   int? id;
+  /// Электронная почта пользователя.
   String email;
+  /// Имя пользователя.
   String userName;
+  /// Пароль пользователя.
   String password;
+  /// Повторный ввод пароля пользователя для подтверждения.
   String rePassword;
+  /// Дата рождения пользователя.
   DateTime dateOfBirth;
+  /// Пол пользователя.
   String gender;
+  /// Раса пользователя.
   Race race;
 
-  /*
-      "email": "rat_73dima@mail.ru",
-    "username": "bobobule",
-    "password": "qwerty-1234",
-    "re_password": "qwerty-1234",
-    "date_of_birth": "2002-06-24",
-    "gender": "Male",
-    "race": "European"
-   */
+  /// Конструктор класса [UserModel].
   UserModel(this.id, {
     required this.email,
     required this.userName,
@@ -30,13 +30,4 @@ class UserModel {
     required this.gender,
     required this.race
   });
-
-/*
-  factory PlanModel.fromJson(Map<String, dynamic> json) => PlanModel(
-      id: json['id'],
-      name: json['name'],
-      intensivity: json['intensivity'],
-      maxTrainingPeriod: json['maxTrainingPeriod'],
-      userId: json['userId']
-  );*/
 }

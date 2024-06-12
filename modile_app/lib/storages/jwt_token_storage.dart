@@ -39,3 +39,22 @@ JwtTokenModel? getJwtToken(){
     log('Ошибка при получении jwt токена из базы данных: ${e.toString()}');
   }
 }
+
+/// Получение Даты рождения пользователя из хранилища
+DateTime? getDateOfBirth(){
+  try {
+    DateTime? dateOfBirth = jwtTokenBox.get(0)?.dateOfBirth;
+    return dateOfBirth;
+  } catch (e) {
+    log('Ошибка при получении Даты рождения пользователя из базы данных: ${e.toString()}');
+  }
+}
+
+String? getUserName(){
+  try{
+    String? username = jwtTokenBox.get(0)?.username;
+    return username;
+  }catch(e){
+    log('Ошибка при получении имени пользователя из базы данных: ${e.toString()}');
+  }
+}

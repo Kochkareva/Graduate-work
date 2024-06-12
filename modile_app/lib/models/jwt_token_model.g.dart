@@ -20,19 +20,22 @@ class JwtTokenModelAdapter extends TypeAdapter<JwtTokenModel> {
       refresh: fields[0] as String,
       access: fields[1] as String,
       username: fields[2] as String,
+      dateOfBirth: fields[3] as DateTime,
     );
   }
 
   @override
   void write(BinaryWriter writer, JwtTokenModel obj) {
     writer
-      ..writeByte(3)
+      ..writeByte(4)
       ..writeByte(0)
       ..write(obj.refresh)
       ..writeByte(1)
       ..write(obj.access)
       ..writeByte(2)
-      ..write(obj.username);
+      ..write(obj.username)
+      ..writeByte(3)
+      ..write(obj.dateOfBirth);
   }
 
   @override

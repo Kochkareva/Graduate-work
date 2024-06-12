@@ -2,17 +2,19 @@ import 'dart:developer' as dev;
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:modile_app/api_service/chart_service.dart';
 import 'package:modile_app/api_service/dynamic_info_service.dart';
 import 'package:modile_app/api_service/plan_service.dart';
 import 'package:modile_app/contracts/enums/mood_enum.dart';
-import 'package:modile_app/logic/google_connect.dart';
+import 'package:modile_app/models/data_weight.dart';
+import 'package:modile_app/models/dynamic_info_model.dart';
 import 'package:modile_app/models/plan_model.dart';
 import 'dart:ui' as ui;
 import 'package:modile_app/storages/jwt_token_storage.dart';
-import 'dart:math';
 import 'package:fl_chart/fl_chart.dart';
-
-import '../contracts/enums/sleeping_enum.dart';
+import '../models/avg_data_heart_rate.dart';
+import '../models/data_general_health.dart';
+import '../models/data_sleep_time.dart';
 
 class Master extends StatefulWidget {
   const Master({super.key});
@@ -26,8 +28,10 @@ class _MasterState extends State<Master> {
   String userName = '';
   late double riskGroup;
   late Future<bool> isInitDone;
+  late DynamicInfoModel dynamicInfoModel;
   bool isExpandedSleep = false;
   bool isExpandedMood = false;
+
   @override
   void initState() {
     isInitDone = fetchData();
@@ -38,10 +42,10 @@ class _MasterState extends State<Master> {
     try {
       var result = await DynamicInfoService().getDynamicInfo();
       riskGroup = result!.riskGroupKp;
+      dynamicInfoModel = result;
       setState(() {
         userName = getJwtToken()!.username;
       });
-
       await Future.delayed(const Duration(seconds: 1));
       return true;
     } catch (error) {
@@ -55,9 +59,8 @@ class _MasterState extends State<Master> {
     super.dispose();
   }
 
-  double currentSleepValue = 0.0;
+  int currentSleepValue = 0;
   double currentMoodValue = 0.0;
-  List<String> labelsSleepSlider = ['0 часов', '< 2 часов', '2 - 4 часа', '4 - 6 часов', '6 - 8 часов', '> 8 часов'];
   List<IconData> labelsMoodSlider = [
     Icons.mood_bad,   // соответствует значению Mood.poor
     Icons.sentiment_neutral,   // соответствует значению Mood.fair
@@ -66,45 +69,34 @@ class _MasterState extends State<Master> {
     Icons.mood,   // соответствует значению Mood.excellent
   ];
 
-  double enumToDoubleMood(Mood value) {
+  Mood doubleToEnumMood(double value) {
     switch (value) {
-      case Mood.poor:
-        return 0.0;
-      case Mood.fair:
-        return 1.0;
-      case Mood.good:
-        return 2.0;
-      case Mood.veryGood:
-        return 3.0;
-      case Mood.excellent:
-        return 4.0;
+      case 0.0:
+        return Mood.Poor;
+      case 1.0:
+        return Mood.Fair;
+      case 2.0:
+        return Mood.Good;
+      case 3.0:
+        return Mood.VeryGood;
+      case 4.0:
+        return Mood.Excellent;
       default:
-        return 0.0;
+        return Mood.Poor;
     }
   }
 
-  // Функция для преобразования значений enum Sleeping в числовые значения
-  double enumToDouble(Sleeping value) {
-    switch (value) {
-      case Sleeping.zero:
-        return 0.0;
-      case Sleeping.lessTwo:
-        return 1.0;
-      case Sleeping.twoFour:
-        return 2.0;
-      case Sleeping.fourSix:
-        return 3.0;
-      case Sleeping.sixEight:
-        return 4.0;
-      case Sleeping.moreEight:
-        return 5.0;
-      default:
-        return 0.0;
+  Future<void> createDynamicInfo() async {
+    try {
+      await DynamicInfoService().createDynamicInfo(dynamicInfoModel);
+    } catch (e) {
+      dev.log(e.toString());
+      rethrow;
     }
   }
 
   // Обновление значения слайдера
-  void updateSleepSlider(double value) {
+  void updateSleepSlider(int value) {
     setState(() {
       currentSleepValue = value;
     });
@@ -137,11 +129,17 @@ class _MasterState extends State<Master> {
       fontWeight: FontWeight.bold,
     );
     final textQuestStyle = theme.textTheme.displayMedium!.copyWith(
-      fontSize: 13,
+      fontSize: 14,
       fontFamily: 'Montserrat',
     );
     final lightBlueColor = Color(0xFF748FFC);
     final lightPinkColor = Color(0xFFF27DA9);
+    final textLightBlueStyle = theme.textTheme.displayMedium!.copyWith(
+      fontSize: 14,
+      fontFamily: 'Montserrat',
+      color: lightBlueColor,
+      fontWeight: FontWeight.bold,
+    );
     final blueColor = Theme
         .of(context)
         .colorScheme
@@ -190,7 +188,7 @@ class _MasterState extends State<Master> {
                         Container(
                             constraints: const BoxConstraints.expand(
                                 height: 380.0),
-                            child: BigCard(riskGroup: riskGroup,)),
+                            child: BigCard(riskGroup: riskGroup, dynamicInfoModel: dynamicInfoModel,)),
                         SizedBox(
                           height: 180,
                           child: ListView(
@@ -222,20 +220,43 @@ class _MasterState extends State<Master> {
                                         title: Text('Сколько часов вы сегодня спали?', style: textWhiteStyle,),
                                         onTap: () {
                                           setState(() {
+
+                                            if(isExpandedSleep){
+                                              setState(() {
+                                                showDialog(
+                                                  context: context,
+                                                  builder: (BuildContext context) {
+                                                    return AlertDialog(
+                                                      surfaceTintColor: Theme.of(context).colorScheme.onPrimary,
+                                                      title: Text('Вопрос', style: blackTitleStyle,),
+                                                      content: Text('Сохранить ответ?'),
+                                                      actions: <Widget>[
+                                                        TextButton(
+                                                          onPressed: () {
+                                                            Navigator.of(context)
+                                                                .pop();
+                                                          },
+                                                          child: const Text('Нет'),
+                                                        ),
+                                                        TextButton(
+                                                          onPressed: () {
+                                                            dynamicInfoModel.sleepTime = currentSleepValue;
+                                                            createDynamicInfo();
+                                                            Navigator.of(context)
+                                                                .pop();
+                                                          },
+                                                          child: const Text('Да'),
+                                                        ),
+                                                      ],
+                                                    );
+                                                  },
+                                                );
+                                              });
+                                            }
                                             isExpandedSleep = !isExpandedSleep; // Переключение состояния при нажатии
                                           });
                                         },
 
-                                      ),
-                                      if (isExpandedSleep)
-                                        Row(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        mainAxisAlignment: MainAxisAlignment.spaceAround,
-                                        children: [
-                                          Text(labelsSleepSlider[0], style: textQuestStyle,),
-                                          Text(labelsSleepSlider[2], style: textQuestStyle),
-                                          Text(labelsSleepSlider[4], style: textQuestStyle),
-                                        ],
                                       ),
                                       if (isExpandedSleep)
                                         Container(
@@ -245,30 +266,29 @@ class _MasterState extends State<Master> {
                                               .colorScheme
                                               .onPrimary,
                                           child: Slider(
-                                            value: currentSleepValue,
+                                            value: currentSleepValue.toDouble(),
                                             activeColor: lightBlueColor ,
                                             min: 0.0,
-                                            max: 5.0,
-                                            divisions: 5,
-                                            label: labelsSleepSlider[currentSleepValue.toInt()],
+                                            max: 24.0,
+                                            divisions: 24,
+                                            label: currentSleepValue.toInt().toString(),
                                             onChanged: (double value) {
-                                              updateSleepSlider(value);
+                                              updateSleepSlider(value.toInt());
                                             },
                                           ),
                                         ),
                                       if (isExpandedSleep)
                                         Padding(
-                                        padding: const EdgeInsets.only(left: 30.0, bottom: 10),
-                                        child: Row(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          mainAxisAlignment: MainAxisAlignment.spaceAround,
-                                          children: [
-                                            Text(labelsSleepSlider[1], style: textQuestStyle),
-                                            Text(labelsSleepSlider[3], style: textQuestStyle),
-                                            Text(labelsSleepSlider[5], style: textQuestStyle),
-                                          ],
+                                          padding: const EdgeInsets.only(top: 8.0, bottom: 20, left: 30),
+                                          child: Row(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text('Время сна ', style: textQuestStyle,),
+                                              Text(currentSleepValue.toInt().toString(), style: textLightBlueStyle),
+                                              Text(' ч', style: textQuestStyle),
+                                            ],
+                                          ),
                                         ),
-                                      ),
                                     ],
                                   ),
                                 ),
@@ -298,6 +318,55 @@ class _MasterState extends State<Master> {
                                         // subtitle: Text('Дополнительные настройки'),
                                         onTap: () {
                                           setState(() {
+
+                                            if (isExpandedMood){
+                                              setState(() {
+                                                showDialog(
+                                                  context: context,
+                                                  builder: (BuildContext context) {
+                                                    return AlertDialog(
+                                                      surfaceTintColor: Theme.of(context).colorScheme.onPrimary,
+                                                      title: Text('Вопрос', style: blackTitleStyle,),
+                                                      content: Text('Сохранить ответ?'),
+                                                      actions: <Widget>[
+                                                        TextButton(
+                                                          onPressed: () {
+                                                            Navigator.of(context)
+                                                                .pop();
+                                                          },
+                                                          child: const Text('Нет'),
+                                                        ),
+                                                        TextButton(
+                                                          onPressed: () {
+
+                                                            // dynamicInfoModel.generalHealth =doubleToEnumMood(currentMoodValue).name;
+                                                            if(doubleToEnumMood(currentMoodValue).index < 1){
+
+                                                              DateTime now = DateTime.now();
+                                                              DateTime firstDayOfCurrentMonth = DateTime(now.year, now.month);
+
+                                                              if (dynamicInfoModel.createdAt.isAfter(firstDayOfCurrentMonth)) {
+                                                                dynamicInfoModel.mentalHealth++;
+                                                              } else if (dynamicInfoModel.createdAt.isBefore(firstDayOfCurrentMonth)) {
+                                                                dynamicInfoModel.mentalHealth = 1;
+                                                              }
+
+                                                            }
+
+                                                            createDynamicInfo();
+
+                                                            Navigator.of(context)
+                                                                .pop();
+                                                          },
+                                                          child: const Text('Да'),
+                                                        ),
+                                                      ],
+                                                    );
+                                                  },
+                                                );
+                                              });
+                                            }
+
                                             isExpandedMood = !isExpandedMood; // Переключение состояния при нажатии
                                           });
                                         },
@@ -541,12 +610,12 @@ class _ListPlansState extends State<ListPlans> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Padding(
-                        padding: const EdgeInsets.only(top: 15.0,),
+                        padding: const EdgeInsets.only(top: 15.0, left: 15, right: 15),
                         child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             SizedBox(
-                              width: 220,
+                              width: MediaQuery.of(context).size.width * 0.6,
                               child: Text(listPlans[index].name, style: titleText.copyWith(height: 1.7), maxLines: 5,
                                 overflow: TextOverflow.ellipsis,),
                             ),
@@ -581,134 +650,6 @@ class _ListPlansState extends State<ListPlans> {
             );
         },
       );
-  }
-}
-
-
-class HeartRatePainter extends CustomPainter {
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    // данные о среднем чсс пользователя в процессе тренировок
-    List<int> heartRate = [89, 104, 59, 83, 91, 106];
-    List<DateTime> dateHeartRate = [
-      DateTime(2022, 10, 1),
-      DateTime(2022, 10, 2),
-      DateTime(2022, 10, 3),
-      DateTime(2022, 10, 4),
-      DateTime(2022, 10, 5),
-      DateTime(2022, 10, 6),
-    ];
-
-    size = const Size(300.0, 180.0);
-    canvas.save();
-    canvas.translate(0.0, size.height);
-
-    final Path path = Path();
-    final Paint linePaint = Paint();
-    linePaint.color = const Color(0xFF3b5bdb);
-    linePaint.style = PaintingStyle.stroke;
-    linePaint.strokeWidth = 2.0;
-
-    final Paint textPaint = Paint();
-    textPaint.color = Colors.black;
-    textPaint.style = PaintingStyle.fill;
-
-    final double center = size.height * 0.05;
-
-    final Paint grayLinePaint = Paint();
-    grayLinePaint.color = const Color(0xFFBAC8FF); // Change color to gray or any other desired color
-    //BAC8FF
-    grayLinePaint.strokeWidth = 1.0; // Set the desired line width
-
-    canvas.drawLine(Offset(10.0, center - 15), Offset(size.width + 10, center - 15), grayLinePaint);
-    canvas.drawLine(Offset(10.0, center - 15), Offset(10, center - size.height), grayLinePaint);
-
-    canvas.drawLine(Offset(10.0, center - 55), Offset(size.width + 10, center - 55), grayLinePaint);
-    canvas.drawLine(Offset(10.0, center - 95), Offset(size.width + 10, center - 95), grayLinePaint);
-    canvas.drawLine(Offset(10.0, center - 135), Offset(size.width + 10, center - 135), grayLinePaint);
-    canvas.drawLine(Offset(10.0, center - 175), Offset(size.width + 10, center - 175), grayLinePaint);
-
-
-    ui.ParagraphBuilder pb = ui.ParagraphBuilder(
-      ui.ParagraphStyle(
-        textAlign: TextAlign.center,
-        fontSize: 12.0,
-        fontFamily: 'Montserrat',
-          fontWeight: FontWeight.bold
-        // textDirection: TextDirection.ltr,
-      ),
-    )
-      ..pushStyle(ui.TextStyle(color: Colors.black))
-      ..addText(heartRate[0].toString());
-
-    ui.Paragraph paragraph = pb.build()
-      ..layout(const ui.ParagraphConstraints(width: 50.0));
-
-
-    Paint fillPaint = Paint()..color = const Color(0xFF3b5bdb); // Define a Paint object with the desired fill color
-
-    canvas.drawParagraph(paragraph, Offset(35.0 - 25.0, -(heartRate[0] + center) - 25));
-    canvas.drawCircle(Offset(35.0, -(heartRate[0] + center) - 1), 3.0, fillPaint);
-    path.moveTo(35.0, -(heartRate[0] + center));
-
-    final int dividerCnst = heartRate.length;
-    for (int i = 1; i < dividerCnst; i++) {
-      double x = size.width / dividerCnst * i +35;
-      double y = -(heartRate[i] + center);
-
-      path.lineTo(x, y);
-
-      canvas.drawCircle(Offset(x, y - 1), 3.0, fillPaint);
-
-      ui.ParagraphBuilder pb = ui.ParagraphBuilder(
-        ui.ParagraphStyle(
-          textAlign: TextAlign.center,
-          fontSize: 12.0,
-          fontFamily: 'Montserrat',
-          fontWeight: FontWeight.bold
-          // textDirection: TextDirection.ltr,
-        ),
-      )
-        ..pushStyle(ui.TextStyle(color: Colors.black))
-        ..addText(heartRate[i].toString());
-
-      ui.Paragraph paragraph = pb.build()
-        ..layout(const ui.ParagraphConstraints(width: 50.0));
-
-      canvas.drawParagraph(paragraph, Offset(x - 25.0, y - 25));
-    }
-
-    // Add this code snippet before drawing the X-axis labels
-
-    // Добавляем подписи по оси X
-    for (int i = 0; i < dividerCnst; i++) {
-      ui.ParagraphBuilder pb = ui.ParagraphBuilder(
-        ui.ParagraphStyle(
-          textAlign: TextAlign.right,
-          fontSize: 12.0,
-          fontFamily: 'Montserrat',
-          fontWeight: FontWeight.bold
-          // textDirection: TextDirection.ltr,
-        ),
-      )
-        ..pushStyle(ui.TextStyle(color: const Color(0xFFBAC8FF)))
-        ..addText(DateFormat('dd.MM').format(
-            dateHeartRate[i]));
-
-      ui.Paragraph paragraph = pb.build()
-        ..layout(const ui.ParagraphConstraints(width: 50.0));
-
-      canvas.drawParagraph(paragraph, Offset(size.width / dividerCnst * i, center - 10));
-    }
-
-    canvas.drawPath(path, linePaint);
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(CustomPainter oldDelegate) {
-    return false;
   }
 }
 
@@ -778,8 +719,9 @@ class RiskGroupPainter extends CustomPainter{
 
 class BigCard extends StatefulWidget {
   final double riskGroup;
+  final DynamicInfoModel dynamicInfoModel;
 
-  const BigCard({super.key, required this.riskGroup});
+  const BigCard({super.key, required this.riskGroup, required this.dynamicInfoModel});
   
   @override
   State<BigCard> createState() => _BigCardState();
@@ -789,32 +731,42 @@ class _BigCardState extends State<BigCard> with TickerProviderStateMixin{
   late PageController _pageViewController;
   late TabController _tabController;
   int _currentPageIndex = 0;
-
+  late List<AvgDataHeartRate> avgDataHeartRate = [];
+  late Future<bool> inittializeData;
   late double riskGroupValue;
+  late List<DataSleepTime> dataTimeSleep = [];
+  late List<DataWeight> dataWeight = [];
+  late List<DataGeneralHealth> dataGeneralHealth = [];
+  late DynamicInfoModel dynamicInfoModel;
 
   @override
   void initState() {
+    inittializeData = getData();
     riskGroupValue = widget.riskGroup;
+    dynamicInfoModel = widget.dynamicInfoModel;
     super.initState();
     _pageViewController = PageController();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 6, vsync: this);
+  }
+
+  Future<bool> getData() async {
+    try {
+      avgDataHeartRate += (await ChartService().getAvgDataHeartRate());
+      dataTimeSleep += (await ChartService().getDataSleepTime());
+      dataWeight += (await ChartService().getDataWeight());
+      dataGeneralHealth += (await ChartService().getDataGeneralHealth());
+    } catch (e) {
+      dev.log('Ошибка: $e');
+      return false;
+    }
+    Future.delayed(const Duration(seconds: 1)).then((value) => setState(() {}));
+    return true;
   }
 
   @override
   void dispose() {
     super.dispose();
   }
-
-  List<double> heartRateData = [89, 104, 59, 83, 91, 106];
-  List<DateTime> dateHeartRate = [
-    DateTime(2022, 10, 1),
-    DateTime(2022, 10, 2),
-    DateTime(2022, 10, 3),
-    DateTime(2022, 10, 4),
-    DateTime(2022, 10, 5),
-    DateTime(2022, 10, 6),
-  ];
-
 
   @override
   Widget build(BuildContext context) {
@@ -834,6 +786,7 @@ class _BigCardState extends State<BigCard> with TickerProviderStateMixin{
       fontWeight: FontWeight.bold,
       color: theme.colorScheme.primary,
     );
+
     final blackTitleStyle = theme.textTheme.displayMedium!.copyWith(
       fontSize: 16,
       fontFamily: 'Montserrat',
@@ -843,31 +796,112 @@ class _BigCardState extends State<BigCard> with TickerProviderStateMixin{
         .of(context)
         .colorScheme
         .primary;
-
-    final List<AvgDataBaseData> AvgDataBases = [
-      AvgDataBaseData(heartRate: 89, date: DateFormat("dd.MM").format(dateHeartRate[0]),),
-      AvgDataBaseData(heartRate: 104, date: DateFormat("dd.MM").format(dateHeartRate[1]),),
-      AvgDataBaseData(heartRate: 59, date: DateFormat("dd.MM").format(dateHeartRate[2]),),
-      AvgDataBaseData(heartRate: 83, date: DateFormat("dd.MM").format(dateHeartRate[3]),),
-      AvgDataBaseData(heartRate: 91, date: DateFormat("dd.MM").format(dateHeartRate[4]),),
-      AvgDataBaseData(heartRate: 106, date: DateFormat("dd.MM").format(dateHeartRate[5]),),
-    ];
-    List<FlSpot> spots = AvgDataBases.asMap().entries.map((e) {
+    final lightBlueColor = Color(0xFF748FFC);
+    final lightPinkColor = Color(0xFFF27DA9);
+    List<FlSpot> spotsAvgDataHeartRate = avgDataHeartRate.asMap().entries.map((e) {
       return FlSpot(e.key.toDouble(), e.value.heartRate!.toDouble());
     }).toList();
 
-    SideTitles _bottomTitles() {
+    List<FlSpot> spotsSleepTime = dataTimeSleep.asMap().entries.map((e) {
+      return FlSpot(e.key.toDouble(), e.value.sleepTime!.toDouble());
+    }).toList();
+
+    List<FlSpot> spotsWeight = dataWeight.asMap().entries.map((e) {
+      return FlSpot(e.key.toDouble(), e.value.weight);
+    }).toList();
+
+    List<FlSpot> spotsGeneralHealth = dataGeneralHealth.asMap().entries.map((e) {
+      return FlSpot(e.key.toDouble(), e.value.value.index.toDouble());
+        }).toList();
+
+    SideTitles _bottomTitlesAvgDataHeartRate() {
       return SideTitles(
         showTitles: true,
         interval: 1,
         getTitlesWidget: (value, meta) {
-          var date = value.toInt() < AvgDataBases.length
-              ? AvgDataBases[value.toInt()].date
+          var date = value.toInt() < avgDataHeartRate.length
+              ? avgDataHeartRate[value.toInt()].date
               : "";
           return SideTitleWidget(axisSide: meta.axisSide, child: Text("$date", style: chartBottomAxisTitlesStyle,));
         },
       );
     }
+
+    SideTitles _bottomTitlesSleepTime() {
+      return SideTitles(
+        showTitles: true,
+        interval: 1,
+        getTitlesWidget: (value, meta) {
+          var date = value.toInt() < dataTimeSleep.length
+              ? dataTimeSleep[value.toInt()].date
+              : "";
+          return SideTitleWidget(axisSide: meta.axisSide, child: Text("$date", style: chartBottomAxisTitlesStyle,));
+        },
+      );
+    }
+
+    SideTitles _bottomTitlesWeight() {
+      return SideTitles(
+        showTitles: true,
+        interval: 1,
+        getTitlesWidget: (value, meta) {
+          var date = value.toInt() < dataWeight.length
+              ? dataWeight[value.toInt()].date
+              : "";
+          return SideTitleWidget(axisSide: meta.axisSide, child: Text("$date", style: chartBottomAxisTitlesStyle,));
+        },
+      );
+    }
+
+    String convertValueToString(int value) {
+      switch (value) {
+        case 0:
+          return "Плохое";
+        case 1:
+          return "Неплохое";
+        case 2:
+          return "Хорошее";
+        case 3:
+          return "Очень хорошее";
+        case 4:
+          return "Превосходное";
+        default:
+          return "";
+      }
+    }
+
+    SideTitles _bottomTitlesGeneralHealth(){
+      return SideTitles(
+        showTitles: true,
+        interval: 1,
+        getTitlesWidget: (value, meta) {
+          return SideTitleWidget(axisSide: meta.axisSide, child: Text("${convertValueToString(dataGeneralHealth[value.toInt()].value.index)}", style: chartBottomAxisTitlesStyle,));
+        },
+      );
+    }
+
+    SideTitles _rightTitlesGeneralHealth(){
+      return SideTitles(
+        showTitles: true,
+        interval: 1,
+        getTitlesWidget: (value, meta) {
+          if (value % 1 == 0) {
+            return SideTitleWidget(axisSide: meta.axisSide, child: Text(value.toInt().toString(), style: chartBottomAxisTitlesStyle,));
+          } else {
+            return SideTitleWidget(axisSide: meta.axisSide, child: Text("", style: chartBottomAxisTitlesStyle,));
+          }
+         },
+      );
+    }
+
+    List<Color> colorsBarChart = [
+      Color(0xFF3b5bdb),
+      Color(0xFFF27DA9),
+      Color(0xFFBAC8FF),
+      Color(0xFFFFB2CF),
+      Color(0xFF748FFC),
+      // Additional colors for each mood
+    ];
 
     return Material(
       color: Theme
@@ -919,7 +953,7 @@ class _BigCardState extends State<BigCard> with TickerProviderStateMixin{
                           child: Row(
                             children: [
                               SizedBox(
-                                width: 100,
+                                width: MediaQuery.of(context).size.width * 0.25,
                                 height: 200,
                                 child: CustomPaint(
                                   painter: RiskGroupPainter(riskGroupValue),
@@ -928,7 +962,7 @@ class _BigCardState extends State<BigCard> with TickerProviderStateMixin{
                                 ),
                               ),
                               SizedBox(
-                                width: 190,
+                                width: MediaQuery.of(context).size.width * 0.5,
                                 height: 200,
                                 child: Padding(
                                   padding: const EdgeInsets.only(left: 20.0),
@@ -998,11 +1032,11 @@ class _BigCardState extends State<BigCard> with TickerProviderStateMixin{
                     child: Column(
                       children: [
                         Padding(
-                          padding: const EdgeInsets.only(top: 10.0),
+                          padding: const EdgeInsets.only(top: 17.0, bottom: 12),
                           child: SizedBox(
-                            width: 200,
+                            width: 220,
                             child: Text(
-                              'Среднее значение ЧСС в тренировках',
+                              'Продолжительность сна',
                               textAlign: TextAlign.center,
                               style: blackTitleStyle,
                               maxLines: 2,
@@ -1011,12 +1045,51 @@ class _BigCardState extends State<BigCard> with TickerProviderStateMixin{
                           ),
                         ),
                         SizedBox(
-                          width: 330,
-                          height: 200,
-                          child: CustomPaint(
-                            painter: HeartRatePainter(),
-                            child: Container(
-                              // Add any additional widgets or styling here
+                          width: MediaQuery.of(context).size.width * 0.8,
+                          height: 250,
+                          child: Container(
+                            padding: const EdgeInsets.all(20),
+                            width: double.infinity,
+                            child: LineChart(
+                              LineChartData(
+                                gridData: FlGridData(show: true),
+                                borderData: FlBorderData(show: false),
+                                titlesData: FlTitlesData(
+                                  show: true,
+                                  bottomTitles: AxisTitles(
+                                    sideTitles: _bottomTitlesSleepTime(),
+                                  ),
+                                  leftTitles: AxisTitles(
+                                    sideTitles: SideTitles(showTitles: false),
+                                  ),
+                                  topTitles: AxisTitles(
+                                    sideTitles: SideTitles(showTitles: false),
+                                  ),
+                                  rightTitles: AxisTitles(
+                                    sideTitles: SideTitles(showTitles: false),
+                                  ),
+                                ),
+                                lineTouchData: LineTouchData(
+                                  touchTooltipData: LineTouchTooltipData(
+                                    showOnTopOfTheChartBoxArea: false,
+                                    tooltipBgColor: Colors.white,
+                                    tooltipBorder: BorderSide(
+                                      color: blueColor,
+                                      width: 1.0,
+                                      style: BorderStyle.solid,
+                                    ),
+                                  ),
+                                ),
+                                lineBarsData: [
+                                  LineChartBarData(
+                                    spots: spotsSleepTime,
+                                    isCurved: true,
+                                    barWidth: 2,
+                                    color: lightPinkColor,
+                                    belowBarData: BarAreaData(show: true, color: lightPinkColor.withOpacity(0.2), ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
@@ -1024,8 +1097,6 @@ class _BigCardState extends State<BigCard> with TickerProviderStateMixin{
                     ),
                   ),
                 ),
-
-
                 //-------------------- Страница 3 -----------------------
                 Padding(
                   padding: const EdgeInsets.only(
@@ -1049,7 +1120,7 @@ class _BigCardState extends State<BigCard> with TickerProviderStateMixin{
                         Padding(
                           padding: const EdgeInsets.only(top: 10.0),
                           child: SizedBox(
-                            width: 200,
+                            width: MediaQuery.of(context).size.width * 0.8,
                             child: Text(
                               'Среднее значение ЧСС в тренировках',
                               textAlign: TextAlign.center,
@@ -1061,7 +1132,7 @@ class _BigCardState extends State<BigCard> with TickerProviderStateMixin{
                         ),
 
                         SizedBox(
-                          width: 330,
+                          width: MediaQuery.of(context).size.width * 0.8,
                           height: 250,
                           child: Container(
                             padding: const EdgeInsets.all(20),
@@ -1073,7 +1144,7 @@ class _BigCardState extends State<BigCard> with TickerProviderStateMixin{
                                 titlesData: FlTitlesData(
                                   show: true,
                                   bottomTitles: AxisTitles(
-                                    sideTitles: _bottomTitles(),
+                                    sideTitles: _bottomTitlesAvgDataHeartRate(),
                                   ),
                                   leftTitles: AxisTitles(
                                     sideTitles: SideTitles(showTitles: false),
@@ -1098,13 +1169,238 @@ class _BigCardState extends State<BigCard> with TickerProviderStateMixin{
                                 ),
                                 lineBarsData: [
                                   LineChartBarData(
-                                    spots: spots,
+                                    spots: spotsAvgDataHeartRate,
                                     isCurved: true,
                                     barWidth: 2,
                                     color: blueColor,
                                     belowBarData: BarAreaData(show: true, color: blueColor.withOpacity(0.2), ),
                                   ),
                                 ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                //-------------------- Страница 4 -----------------------
+                Padding(
+                  padding: const EdgeInsets.only(
+                      top: 30.0, left: 30.0, right: 30.0, bottom: 40.0),
+                  child: Card(
+                    surfaceTintColor: Theme
+                        .of(context)
+                        .colorScheme
+                        .onPrimary,
+                    elevation: 4.0,
+                    shadowColor: Theme
+                        .of(context)
+                        .colorScheme
+                        .primary,
+                    color: Theme
+                        .of(context)
+                        .colorScheme
+                        .onPrimary,
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(top: 10.0),
+                          child: SizedBox(
+                            width: 220,
+                            child: Text(
+                              'Настроение в этом месяце',
+                              textAlign: TextAlign.center,
+                              style: blackTitleStyle,
+                              maxLines: 2,
+                              // Set the maximum number of lines
+                              overflow: TextOverflow.ellipsis,),
+                          ),
+                        ),
+                        SizedBox(
+                          width: MediaQuery.of(context).size.width * 0.8,
+                          height: 250,
+                          child: Container(
+                            padding: const EdgeInsets.all(20),
+                            width: double.infinity,
+                            child: PieChart(
+                              PieChartData(
+                                sectionsSpace: 5,
+                                centerSpaceRadius: 25,
+                                sections: [
+                                  PieChartSectionData(
+                                    color: lightBlueColor.withOpacity(0.8),
+                                    value: dynamicInfoModel.mentalHealth.toDouble(),
+                                    title: 'Плохое\n    настроение\n${dynamicInfoModel.mentalHealth} д.',
+                                    radius: 80,
+                                    titleStyle: TextStyle(fontSize: 12,fontFamily: 'Montserrat', fontWeight: FontWeight.bold, color: theme.colorScheme.onPrimary),
+                                  ),
+                                  PieChartSectionData(
+                                    color: lightPinkColor.withOpacity(0.8),
+                                    value: (30-dynamicInfoModel.mentalHealth.toDouble()),
+                                    title: 'Хорошее\nнастроение\n${(30-dynamicInfoModel.mentalHealth)} д.',
+                                    radius: 80,
+                                    titleStyle: TextStyle(fontSize: 12,fontFamily: 'Montserrat', fontWeight: FontWeight.bold, color: theme.colorScheme.onPrimary),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                //-------------------- Страница 5 -----------------------
+                Padding(
+                  padding: const EdgeInsets.only(
+                      top: 30.0, left: 30.0, right: 30.0, bottom: 40.0),
+                  child: Card(
+                    surfaceTintColor: Theme
+                        .of(context)
+                        .colorScheme
+                        .onPrimary,
+                    elevation: 4.0,
+                    shadowColor: Theme
+                        .of(context)
+                        .colorScheme
+                        .primary,
+                    color: Theme
+                        .of(context)
+                        .colorScheme
+                        .onPrimary,
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(top: 17.0, bottom: 12),
+                          child: SizedBox(
+                            width: 220,
+                            child: Text(
+                              'Вес',
+                              textAlign: TextAlign.center,
+                              style: blackTitleStyle,
+                              maxLines: 2,
+                              // Set the maximum number of lines
+                              overflow: TextOverflow.ellipsis,),
+                          ),
+                        ),
+                        SizedBox(
+                          width: MediaQuery.of(context).size.width * 0.8,
+                          height: 250,
+                          child: Container(
+                            padding: const EdgeInsets.all(20),
+                            width: double.infinity,
+                            child: LineChart(
+                              LineChartData(
+                                gridData: FlGridData(show: true),
+                                borderData: FlBorderData(show: false),
+                                titlesData: FlTitlesData(
+                                  show: true,
+                                  bottomTitles: AxisTitles(
+                                    sideTitles: _bottomTitlesWeight(),
+                                  ),
+                                  leftTitles: AxisTitles(
+                                    sideTitles: SideTitles(showTitles: false),
+                                  ),
+                                  topTitles: AxisTitles(
+                                    sideTitles: SideTitles(showTitles: false),
+                                  ),
+                                  rightTitles: AxisTitles(
+                                    sideTitles: SideTitles(showTitles: false),
+                                  ),
+                                ),
+                                lineTouchData: LineTouchData(
+                                  touchTooltipData: LineTouchTooltipData(
+                                    showOnTopOfTheChartBoxArea: false,
+                                    tooltipBgColor: Colors.white,
+                                    tooltipBorder: BorderSide(
+                                      color: blueColor,
+                                      width: 1.0,
+                                      style: BorderStyle.solid,
+                                    ),
+                                  ),
+                                ),
+                                lineBarsData: [
+                                  LineChartBarData(
+                                    spots: spotsWeight,
+                                    isCurved: true,
+                                    barWidth: 2,
+                                    color: lightBlueColor,
+                                    belowBarData: BarAreaData(show: true, color: lightBlueColor.withOpacity(0.2), ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                //-------------------- Страница 6 -----------------------
+                Padding(
+                  padding: const EdgeInsets.only(
+                      top: 30.0, left: 30.0, right: 30.0, bottom: 40.0),
+                  child: Card(
+                    surfaceTintColor: Theme
+                        .of(context)
+                        .colorScheme
+                        .onPrimary,
+                    elevation: 4.0,
+                    shadowColor: Theme
+                        .of(context)
+                        .colorScheme
+                        .primary,
+                    color: Theme
+                        .of(context)
+                        .colorScheme
+                        .onPrimary,
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(top: 17.0, bottom: 12),
+                          child: SizedBox(
+                            width: 220,
+                            child: Text(
+                              'Общее самочувствие',
+                              textAlign: TextAlign.center,
+                              style: blackTitleStyle,
+                              maxLines: 2,
+                              // Set the maximum number of lines
+                              overflow: TextOverflow.ellipsis,),
+                          ),
+                        ),
+                        SizedBox(
+                          width: MediaQuery.of(context).size.width * 0.8,
+                          height: 250,
+                          child: Container(
+                            padding: const EdgeInsets.all(20),
+                            width: double.infinity,
+                            child: BarChart(
+                              BarChartData(
+                                alignment: BarChartAlignment.spaceAround,
+                                barTouchData: BarTouchData(enabled: false),
+                                titlesData: FlTitlesData(
+                                  show: true,
+                                  bottomTitles: AxisTitles(
+                                    sideTitles: _bottomTitlesGeneralHealth(),
+                                  ),
+                                  topTitles: AxisTitles(
+                                    sideTitles: SideTitles(showTitles: false),
+                                  ),
+                                  leftTitles: AxisTitles(
+                                    sideTitles: _rightTitlesGeneralHealth(),
+                                  ),
+                                  rightTitles: AxisTitles(
+                                    sideTitles: SideTitles(showTitles: false),
+                                  )
+                                ),
+                                borderData: FlBorderData(show: false),
+                                barGroups: List.generate(spotsGeneralHealth.length, (index) {
+                                  return BarChartGroupData(x: spotsGeneralHealth[index].x.toInt(), barRods: [
+                                    BarChartRodData(fromY: 0, color: colorsBarChart[spotsGeneralHealth[index].x.toInt()], toY: spotsGeneralHealth[index].y),
+                                  ]);
+                                }),
                               ),
                             ),
                           ),
@@ -1143,15 +1439,15 @@ class _BigCardState extends State<BigCard> with TickerProviderStateMixin{
   }
 }
 
-class AvgDataBaseData {
-  double heartRate;
-  String date;
-
-  AvgDataBaseData({
-    required this.heartRate,
-    required this.date,
-  });
-}
+// class AvgDataBaseData {
+//   double heartRate;
+//   String date;
+//
+//   AvgDataBaseData({
+//     required this.heartRate,
+//     required this.date,
+//   });
+// }
 
 class PageIndicator extends StatelessWidget {
   const PageIndicator({
@@ -1197,10 +1493,10 @@ class PageIndicator extends StatelessWidget {
           splashRadius: 16.0,
           padding: EdgeInsets.zero,
           onPressed: () {
-            if (currentPageIndex == 2) {
+            if (currentPageIndex == 5) {
               return;
             }
-            onUpdateCurrentPageIndex(currentPageIndex + 2);
+            onUpdateCurrentPageIndex(currentPageIndex + 1);
           },
           icon: const Icon(
             Icons.arrow_right_rounded,

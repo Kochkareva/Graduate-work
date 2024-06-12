@@ -1,12 +1,12 @@
 import 'dart:developer';
-
 import 'package:flutter/material.dart';
 import 'package:modile_app/api_service/plan_service.dart';
+import 'package:modile_app/api_service/training_service.dart';
 import 'package:modile_app/models/plan_model.dart';
 import 'package:modile_app/models/training_model.dart';
+import 'package:modile_app/models/training_performance_model.dart';
 import 'package:modile_app/pages/exercises_training.dart';
-import 'package:modile_app/pages/plans.dart';
-import '../api_service/dynamic_info_service.dart';
+import 'index.dart';
 
 class TrainingPlan extends StatefulWidget {
   /// slug Плана
@@ -28,16 +28,35 @@ class _TrainingPlanState extends State<TrainingPlan> {
   /// Список тренировок
   late List<TrainingModel> listTrainings = [];
 
+  /// Список выполненных тренировок
+  late List<TrainingPerformanceModel> listTrainingPerformances = [];
+  // late Future<List<TrainingPerformanceModel>> futureListTrainingPerformances;
+
   @override
   void initState() {
-    isInitDone = getData();
+    // isInitDone = getData();
+    isInitDone = initializeData();
+    // futureListTrainingPerformances = getTrainingPerformance();
     super.initState();
+  }
+
+  Future<bool> initializeData() async{
+    try {
+      await getData();
+      await getTrainingPerformance();
+      return true;
+    } catch (error) {
+      log('Ошибка: $error');
+      return false;
+    }
+    return false;
   }
 
   Future<bool> getData() async {
     try {
       planModel = (await PlanService().getPlan(widget.slugPlan))!;
       isFollowedPlan = planModel.iFollow;
+      // updateChildWidget(isFollowedPlan);
       for(int i=1; i<=planModel.trainingAmount; i++){
         listTrainings.add(TrainingModel(name: 'Тренировка $i', number: i, slug: 'training-$i', exercises: []));
       }
@@ -52,6 +71,20 @@ class _TrainingPlanState extends State<TrainingPlan> {
   @override
   void dispose() {
     super.dispose();
+  }
+
+  Future<List<TrainingPerformanceModel>> getTrainingPerformance() async{
+    try {
+      if(isFollowedPlan) {
+        listTrainingPerformances +=
+        (await TrainingService().getTrainingPerformanceByPlan(
+            widget.slugPlan))!;
+      }
+    } catch (e) {
+      rethrow;
+    }
+    Future.delayed(const Duration(seconds: 1)).then((value) => setState(() {}));
+    return listTrainingPerformances;
   }
 
   Future<void> followPlan() async {
@@ -153,7 +186,7 @@ class _TrainingPlanState extends State<TrainingPlan> {
                                     context,
                                     MaterialPageRoute(
                                         builder: (
-                                            context) => const Plans()),
+                                            context) => const Index()),
                                   );
                                 },
                               ),
@@ -161,7 +194,7 @@ class _TrainingPlanState extends State<TrainingPlan> {
                             Padding(
                               padding: const EdgeInsets.only(left: 30.0),
                               child: SizedBox(
-                                width: 200,
+                                width: MediaQuery.of(context).size.width * 0.6,
                                 child: Text(planModel.name,
                                   textAlign: TextAlign.left,
                                   style: titleWhiteTextStyle,maxLines: 5, // Set the maximum number of lines
@@ -260,8 +293,13 @@ class _TrainingPlanState extends State<TrainingPlan> {
                                               followPlan().then((result) {
                                                 setState(() {
                                                   isFollowedPlan = value;
-                                                });
+                                                  planModel.iFollow = isFollowedPlan;
+                                                  });
                                                 Navigator.of(context).pop();
+                                                Navigator.pushReplacement(
+                                                  context,
+                                                  MaterialPageRoute(builder: (context) => TrainingPlan(slugPlan: widget.slugPlan)),
+                                                );
                                               }).catchError((error) {
                                                 Navigator.of(context)
                                                     .pop();
@@ -301,8 +339,13 @@ class _TrainingPlanState extends State<TrainingPlan> {
                                               stopFollowPlan().then((result) {
                                                 setState(() {
                                                   isFollowedPlan = value;
+                                                  planModel.iFollow = isFollowedPlan;
                                                 });
                                                 Navigator.of(context).pop();
+                                                Navigator.pushReplacement(
+                                                  context,
+                                                  MaterialPageRoute(builder: (context) => TrainingPlan(slugPlan: widget.slugPlan)),
+                                                );
                                               }).catchError((error) {
                                                 Navigator.of(context)
                                                     .pop();
@@ -323,27 +366,11 @@ class _TrainingPlanState extends State<TrainingPlan> {
                                     },
                                   );
                                 }
-
-
-
-
                               },
                             ),
                           ],
                         ),
                       ),
-                      // Padding(
-                      //   padding: const EdgeInsets.only(top: 10.0, left: 30.0, right: 30.0),
-                      //   child: ElevatedButton(
-                      //     onPressed: () {
-                      //       // Navigator.push(
-                      //       //   context,
-                      //       //   MaterialPageRoute(builder: (context) => ExerciseTraining(slugPlan: planModel.slug, slugTraining: slugTraining, picture: 'здесь надо картинку')),
-                      //       // );
-                      //     },
-                      //     child: Text('Начать'),
-                      //   ),
-                      // ),
                       Padding(
                         padding: const EdgeInsets.only(top: 20.0, left: 30.0, bottom: 15.0),
                         child: Text(
@@ -352,11 +379,7 @@ class _TrainingPlanState extends State<TrainingPlan> {
                       ),
                       Padding(
                         padding: const EdgeInsets.only(left: 10.0),
-                        child: Container(
-                            constraints: const BoxConstraints.expand(
-                                height: 750.0),
-                            child: ListTrainings(list: listTrainings, planModel: planModel,)
-                        ),
+                        child: ListTrainings(list: listTrainings, planModel: planModel, indexCompleted: listTrainingPerformances.length, isFollowedPlan: isFollowedPlan,),
                       ),
                     ],
                   ),
@@ -371,8 +394,10 @@ class _TrainingPlanState extends State<TrainingPlan> {
 class ListTrainings extends StatefulWidget {
   late List<TrainingModel> list;
   late PlanModel planModel;
+  late int indexCompleted;
+  late bool isFollowedPlan;
 
-  ListTrainings({super.key, required this.list, required this.planModel});
+  ListTrainings({super.key, required this.list, required this.planModel, required this.indexCompleted, required this.isFollowedPlan});
 
   @override
   State<ListTrainings> createState() => _ListTrainingsState();
@@ -382,7 +407,8 @@ class _ListTrainingsState extends State<ListTrainings> {
   late List<TrainingModel> list = widget.list;
 
   /// номер тренировки, с которой надо начать
-  int _index = 0;
+  late int indexCompleted = widget.indexCompleted;
+  late bool isFollowedPlan = widget.isFollowedPlan;
 
   @override
   Widget build(BuildContext context) {
@@ -395,42 +421,123 @@ class _ListTrainingsState extends State<ListTrainings> {
         .of(context)
         .colorScheme
         .primary;
-    return Scaffold(
-      backgroundColor: Theme
-          .of(context)
-          .colorScheme
-          .onPrimary,
-      body: ListView.builder(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(8),
-        itemCount: list.isEmpty ? 0 : list.length,
-        itemBuilder: (BuildContext context, int index) {
-          return
-            Column(
-              children: [
-                ListTile(
-                    title: Text(
-                      'Тренировка ${index + 1}', style: blackTextStyle,),
-                  subtitle: Padding(
-                    padding: const EdgeInsets.only(top: 15.0, left: 50, right: 50),
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) =>
-                              ExerciseTraining(slugTraining: 'training-${_index + 1}', planModel: widget.planModel,)),
-                        );
-                      },
-                      child: const Text('Начать тренировку'),
-                    ),
+    final whiteColor = Theme
+        .of(context)
+        .colorScheme
+        .onPrimary;
+
+    const grayColor = Color(0xFFE2E2E2);
+    final lightBlueColor = Color(0xFFBAC8FF);
+    return Column(
+      children: [
+        GridView.builder(
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 6, // Количество элементов в строке
+          ),
+          physics: const NeverScrollableScrollPhysics(),
+          shrinkWrap: true,
+          padding: const EdgeInsets.all(8.0),
+          itemCount: list.isEmpty ? 0 : list.length,
+          itemBuilder: (BuildContext context, int index) {
+            return Padding(
+              padding: const EdgeInsets.all(5.0),
+              child: Container(
+                height: 100,
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: index == (indexCompleted) ? blueColor : whiteColor, // Цвет пунктирной линии
+                    width: 2, // Толщина линии
+                  ),
+                  borderRadius: BorderRadius.circular(50), // Задайте радиус по вашему усмотрению
+                ),
+                child: CircleAvatar(
+                  backgroundColor: index > (indexCompleted - 1) ? whiteColor : grayColor,
+                  child: Text('${index + 1}',
+                    style: blackTextStyle,
                   ),
                 ),
-                Divider(),
-              ],
+              ),
             );
-        },
-      ),
+          },
+        ),
+        if (isFollowedPlan)
+          ElevatedButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ExerciseTraining(
+                    slugTraining: 'training-${indexCompleted + 1}',
+                    planModel: widget.planModel,
+                  ),
+                ),
+              );
+            },
+            child: const Text('Начать тренировку'),
+          ),
+      ],
     );
+
+    // return Column(
+    //   children: [
+    //     ListView.builder(
+    //       physics: const NeverScrollableScrollPhysics(),
+    //       shrinkWrap: true,
+    //       padding: const EdgeInsets.only(top: 8, left: 8, bottom: 8, right: 18),
+    //       itemCount: list.isEmpty ? 0 : list.length,
+    //       itemBuilder: (BuildContext context, int index) {
+    //         return
+    //           Column(
+    //             children: [
+    //               Padding(
+    //                 padding: const EdgeInsets.only(bottom: 5.0),
+    //                 child: Card(
+    //                   color: index > (indexCompleted - 1) ? whiteColor : grayColor,
+    //                   surfaceTintColor: Theme
+    //                       .of(context)
+    //                       .colorScheme
+    //                       .onPrimary,
+    //                   shape: RoundedRectangleBorder(
+    //                     borderRadius: BorderRadius.circular(10.0), // Радиус скругления углов
+    //                   ),
+    //                   elevation: 5, // Тень карточки
+    //                   child: ListTile(
+    //                     // tileColor: index > (indexCompleted - 1) ? whiteColor : grayColor,
+    //                     title: Text(
+    //                       'Тренировка день ${index + 1}',
+    //                       style: blackTextStyle,
+    //                     ),
+    //                     subtitle: Padding(
+    //                       padding: const EdgeInsets.only(top: 15.0, left: 50, right: 50),
+    //                       child: Column(
+    //                         children: [
+    //                           if (index == indexCompleted && isFollowedPlan)
+    //                             ElevatedButton(
+    //                               onPressed: () {
+    //                                 Navigator.push(
+    //                                   context,
+    //                                   MaterialPageRoute(
+    //                                     builder: (context) => ExerciseTraining(
+    //                                       slugTraining: 'training-${index + 1}',
+    //                                       planModel: widget.planModel,
+    //                                     ),
+    //                                   ),
+    //                                 );
+    //                               },
+    //                               child: const Text('Начать тренировку'),
+    //                             ),
+    //                         ],
+    //                       ),
+    //                     ),
+    //                   ),
+    //                 ),
+    //               ),
+    //             ],
+    //           );
+    //       },
+    //     ),
+    //   ],
+    // );
 
     /*
     Navigator.push(

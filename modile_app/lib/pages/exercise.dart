@@ -1,24 +1,28 @@
 import 'dart:async';
 import 'dart:developer';
 
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+import 'package:modile_app/api_service/training_service.dart';
 import 'package:modile_app/pages/complete_training.dart';
-
 import '../api_service/dynamic_info_service.dart';
-import '../logic/google_connect.dart';
-import '../logic/google_connect_logic.dart';
 import '../logic/regulator.dart';
 import '../logic/training_regulation.dart';
-import '../models/dynamic_info_model.dart';
 import '../models/exercise_model.dart';
 import 'package:modile_app/contracts/enums/intensity_enum.dart';
+import '../models/plan_model.dart';
+import '../models/training_model.dart';
+import '../models/training_performance_model.dart';
+import 'emergency_completion_training.dart';
 
 class Exercise extends StatefulWidget {
 
   late List<ExerciseModel> exercises;
+  late TrainingModel trainingModel;
+  late PlanModel planModel;
   late Intensity intensity;
 
-  Exercise({super.key, required this.exercises, required this.intensity});
+  Exercise({super.key, required this.exercises, required this.intensity, required this.planModel, required this.trainingModel});
 
   @override
   State<Exercise> createState() => _ExerciseState();
@@ -31,10 +35,13 @@ class _ExerciseState extends State<Exercise> {
   int currentExercise = 0;
   /// утомление
   bool? isFatigue;
+  bool midFatigue = false;
   /// Боли в сердце
   bool? isPainHeartArea;
+  bool shortBreath = false;
   /// Отдышка
   bool? isShortnessBreath;
+  bool heartAce = false;
   /// Длительность выполнения тренировки
   int timeExercise = 0;
   late Intensity intensity;
@@ -42,27 +49,68 @@ class _ExerciseState extends State<Exercise> {
   late Regulator regulator;
   /// Группа риска пользователя
   late double riskGroup;
+  late TrainingModel trainingModel;
+  late int trainingHeartRate;
+  late Future<int> futureTrainingHeartRate;
+  late List<double> pulse = [];
+  /// Тестовые данные
+  late double trainingRiskG = 0.5;
   // riskCorrector
   // trainingGroupRisk
+  final AudioCache player = AudioCache();
 
   @override
   void initState() {
-    isInitDone = fetchData();
-
-    intensity = widget.intensity;
-    regulator = Regulator(restTime: 30, intensity: intensity.index.toDouble() + 1, workoutMonitor: 0);
+    isInitDone = initializeData();
     super.initState();
   }
 
-  /// Заменить на запрос о тренировках в планах
-  Future<bool> fetchData() async {
+  Future<bool> initializeData() async{
+    exerciseList.addAll(widget.exercises);
+    trainingModel = widget.trainingModel;
+    intensity = widget.intensity;
+    regulator = Regulator(restTime: 30, intensity: intensity.index.toDouble() + 1, workoutMonitor: 0);
+
+    try {
+      await fetchData();
+      await getTrainHeartRate();
+      double valuePulse = 0.0;
+      valuePulse = await TrainingRegulation(riskGroup: riskGroup).getHeartRate();
+      print('valuePulse: $valuePulse');
+      pulse.add(valuePulse);
+      print('trainingHeartRate: $trainingHeartRate');
+      return true;
+    } catch (error) {
+      log('Ошибка: $error');
+      return false;
+    }
+    return false;
+  }
+
+  Future<void> fetchData() async {
     try {
       var result = await DynamicInfoService().getDynamicInfo();
       riskGroup = result!.riskGroupKp;
-      exerciseList.addAll(widget.exercises);
-      print(riskGroup);
-      await Future.delayed(const Duration(seconds: 1));
-      return true;
+    } catch (error) {
+      log(error.toString());
+      throw Exception('Ошибка при получении данных: ${error.toString()}');
+    }
+  }
+
+  Future<void> getTrainHeartRate() async {
+    try {
+      var result = await TrainingRegulation(riskGroup: riskGroup).getTrainingHeartRate();
+      trainingHeartRate = result;
+    } catch (error) {
+      log(error.toString());
+      throw Exception('Ошибка при вычислении тренировочной ЧСС: ${error.toString()}');
+    }
+  }
+
+  /// Завершение тренировки
+  Future<void> completeTraining(TrainingPerformanceModel trainingPerformance) async {
+    try {
+      await TrainingService().createTrainingPerformance(trainingPerformance);
     } catch (error) {
       log(error.toString());
       throw Exception(error.toString());
@@ -137,7 +185,7 @@ class _ExerciseState extends State<Exercise> {
         .colorScheme
         .primary;
     return Padding(
-      padding: const EdgeInsets.only(top: 40.0, left: 30.0, right: 30.0),
+      padding: const EdgeInsets.only(top: 40.0,),
       child: Column(
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.start,
@@ -166,7 +214,7 @@ class _ExerciseState extends State<Exercise> {
               child: Column(
                 children: [
                   Padding(
-                    padding: const EdgeInsets.only(top: 20.0),
+                    padding: const EdgeInsets.only(top: 20.0, left: 35),
                     // Название и описание упражнения
                     child: Row(
                       children: [
@@ -221,13 +269,13 @@ class _ExerciseState extends State<Exercise> {
                       style: blackTextStyle,),
                   ),
                   Padding(
-                    padding: const EdgeInsets.only(top: 30.0),
+                    padding: const EdgeInsets.only(top: 30.0, right: 0),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         // Кнопка перехода к предыдущему упражнению
                         SizedBox(
-                          width: 55,
+                          width: MediaQuery.of(context).size.width * 0.15,
                           child: IconButton(
                             onPressed: () {
                               setState(() {
@@ -250,7 +298,7 @@ class _ExerciseState extends State<Exercise> {
                         //     style: bigBlueTextStyle, textAlign: TextAlign.center, ),
                         // ),
                         SizedBox(
-                          width: 215,
+                          width: MediaQuery.of(context).size.width * 0.55,
                           child: Text(exercises[currentExercise].amount == null
                           // ? showTimeExercise((exercises[currentExercise].time!)!*(intensity.index+1)).toString()
                               ? showTimeExercise(((exercises[currentExercise]
@@ -264,16 +312,18 @@ class _ExerciseState extends State<Exercise> {
                         ),
                         // Кнопка перехода к следующему упражнению
                         SizedBox(
-                          width: 55,
+                          width: MediaQuery.of(context).size.width * 0.15,
                           child: IconButton(
                             onPressed: () {
                               setState(() {
                                 if(currentExercise == (exercises.length - 1)){
+                                  completeTraining(TrainingPerformanceModel(slug: '${widget.planModel.slug}-${trainingModel.slug}', pulse: pulse, midFatigue: midFatigue, shortBreath: shortBreath, heartAce: heartAce, trainingRiskG: trainingRiskG, createdAt: DateTime.now()));
                                   Navigator.push(
+
                                       context,
                                       MaterialPageRoute(
                                         builder: (context) =>
-                                            CompleteTraining(isSuccess: true, countExercises: currentExercise + 1),
+                                            CompleteTraining(isSuccess: true, countExercises: currentExercise + 1, pulse: pulse),
                                       ));
                                 }
                                 if (currentExercise < exercises.length - 1) {
@@ -325,15 +375,19 @@ class _ExerciseState extends State<Exercise> {
               padding: const EdgeInsets.only(top: 15.0),
               child: ElevatedButton(
                 onPressed: () {
+                  AudioPlayer().play(AssetSource('audio/my_audio.mp3'));
                   setState(() {
                     if(currentExercise == (exercises.length - 1)){
+                      completeTraining(TrainingPerformanceModel(slug: '${widget.planModel.slug}-${trainingModel.slug}', pulse: pulse, midFatigue: midFatigue, shortBreath: shortBreath, heartAce: heartAce, trainingRiskG: trainingRiskG, createdAt: DateTime.now()));
+
                       Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (context) =>
-                                CompleteTraining(isSuccess: true, countExercises: currentExercise + 1),
+                                CompleteTraining(isSuccess: true, countExercises: currentExercise + 1, pulse: pulse),
                           ));
                     }
+
                     if (currentExercise < exercises.length - 1) {
                       setState(() {
                         currentExercise++;
@@ -356,6 +410,7 @@ class _ExerciseState extends State<Exercise> {
                                     .restTime) + regulator.restTime),)),
                     );
                     if (currentExercise % 5 == 0) {
+
                       // утомление
                       showDialog(
                         context: context,
@@ -385,6 +440,7 @@ class _ExerciseState extends State<Exercise> {
                                               setState(() {
                                                 isFatigue =
                                                     value;
+                                                midFatigue = isFatigue!;
                                                 Navigator.of(context)
                                                     .pop();
                                               });
@@ -444,6 +500,7 @@ class _ExerciseState extends State<Exercise> {
                                                 setState(() {
                                                   isPainHeartArea =
                                                       value;
+                                                  shortBreath = isPainHeartArea!;
                                                   Navigator.of(context)
                                                       .pop();
                                                 });
@@ -475,7 +532,6 @@ class _ExerciseState extends State<Exercise> {
                           },
                         ).then((value) {
                           // отдышка
-
                           showDialog(
                             context: context,
                             builder: (BuildContext context) {
@@ -504,6 +560,7 @@ class _ExerciseState extends State<Exercise> {
                                                   setState(() {
                                                     isShortnessBreath =
                                                         value;
+                                                    heartAce = isShortnessBreath!;
                                                     Navigator.of(context)
                                                         .pop();
                                                   });
@@ -534,14 +591,23 @@ class _ExerciseState extends State<Exercise> {
                               );
                             },
                           ).then((value) {
+
                             /// Дождаться получения данных
                             /// Прям здесь проверку превышения ебануть, добавить также как и для верхних булевскую переменную и гуд
                             /// в Трайнинг регулатион даже метод есть
                             // Future<int> currentHeartRate = GoogleConnect().getHeartRate();
+                            print('Heart Training Rate:');
+                            print(trainingHeartRate.toString());
+
+                            final stopwatch = Stopwatch()..start();
+
+                            bool isHeartRate = TrainingRegulation(riskGroup: riskGroup)
+                                .checkHeartRate(trainingHeartRate);
+
 
                             ///----------------------------------------------------------
                             if (isFatigue! || isPainHeartArea! ||
-                                isShortnessBreath!) {
+                                isShortnessBreath! || isHeartRate) {
                               setState(() {
                                 regulator =
                                     TrainingRegulation(riskGroup: riskGroup)
@@ -550,14 +616,15 @@ class _ExerciseState extends State<Exercise> {
                                 isPainHeartArea = null;
                                 isShortnessBreath = null;
                               });
+                              stopwatch.stop();
+                              print('Time elapsed: ${stopwatch.elapsedMilliseconds} milliseconds');
                               if (regulator.intensity == 0 &&
                                   regulator.restTime == 0) {
-                                /// Критическое заершение тренировки
                                 Navigator.push(
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) =>
-                                          CompleteTraining(isSuccess: false, countExercises: currentExercise + 1),
+                                          EmergencyCompletionTraining(),
                                     ));
                               }
                             }
@@ -565,9 +632,19 @@ class _ExerciseState extends State<Exercise> {
                         });
                       }
                       );
+                      setState(() async {
+                        double valuePulse = 0.0; // Инициализация начального значения
+
+                        valuePulse = await TrainingRegulation(riskGroup: riskGroup).getHeartRate();
+                        print('valuePulse: $valuePulse');
+                        pulse.add(valuePulse);
+                      });
                     }
+
                   }
                   );
+
+
                 },
                 child: const Text('Выполнено'),
               ),
@@ -577,7 +654,6 @@ class _ExerciseState extends State<Exercise> {
               padding: const EdgeInsets.only(top: 10.0),
               child: TextButton(
                 onPressed: () {
-
                   showDialog(
                     context: context,
                     builder: (BuildContext context) {
@@ -588,22 +664,29 @@ class _ExerciseState extends State<Exercise> {
                         actions: <Widget>[
                           TextButton(
                             onPressed: () {
+
+
+                              completeTraining(TrainingPerformanceModel(slug: '${widget.planModel.slug}-${trainingModel.slug}', pulse: pulse, midFatigue: midFatigue, shortBreath: shortBreath, heartAce: heartAce, trainingRiskG: trainingRiskG, createdAt: DateTime.now()));
+
                               Navigator.push(
                                   context,
                                   MaterialPageRoute(
                                     builder: (context) =>
-                                        CompleteTraining(isSuccess: true, countExercises: currentExercise + 1),
+                                        CompleteTraining(isSuccess: true, countExercises: currentExercise + 1, pulse: pulse),
                                   ));
                             },
                             child: const Text('Нет'),
                           ),
                           TextButton(
                             onPressed: () {
+                              completeTraining(TrainingPerformanceModel(slug: '${widget.planModel.slug}-${trainingModel.slug}', pulse: pulse, midFatigue: midFatigue, shortBreath: shortBreath, heartAce: heartAce, trainingRiskG: trainingRiskG, createdAt: DateTime.now()));
+
+
                               Navigator.push(
                                   context,
                                   MaterialPageRoute(
                                     builder: (context) =>
-                                        CompleteTraining(isSuccess: false, countExercises: currentExercise + 1),
+                                        CompleteTraining(isSuccess: false, countExercises: currentExercise + 1, pulse: pulse),
                                   ));
                             },
                             child: const Text('Да'),
@@ -629,7 +712,7 @@ class _ExerciseState extends State<Exercise> {
 
   int showTimeExercise(int time){
     if(timeExercise == 0) {
-        timeExercise = time;
+      timeExercise = time;
     }
     return timeExercise;
   }

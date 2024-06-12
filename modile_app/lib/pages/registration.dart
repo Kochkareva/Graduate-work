@@ -74,7 +74,15 @@ class _RegisteringState extends State<Registering> {
 
   String codeFromMail = '';
   bool activateDone = false;
+  bool _isObscure = true;
+  bool _isObscureRe = true;
 
+  TextEditingController _emailController = TextEditingController();
+  @override
+  void dispose() {
+    _emailController.dispose();
+    super.dispose();
+  }
   Map<String, String> fieldMap = {
     'email': 'Email',
     'userName': 'Имя пользователя',
@@ -84,6 +92,10 @@ class _RegisteringState extends State<Registering> {
     // 'gender': 'Пол',
     // 'race': 'Раса',
   };
+
+  void _clearUsername() {
+    _emailController.clear();
+  }
 
   bool _isFieldEmpty(String field) {
     switch (field) {
@@ -185,9 +197,13 @@ class _RegisteringState extends State<Registering> {
             Padding(
               padding: const EdgeInsets.only(top: 15.0),
               child: TextField(
+                controller: _emailController,
                 decoration: InputDecoration(
                   prefixIcon: const Icon(Icons.email_outlined),
-                  suffixIcon: const Icon(Icons.clear),
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.clear),
+                    onPressed: _clearUsername,
+                  ),
                   labelText: 'Email',
                   hintText: 'email@yandex.ru',
                   border: OutlineInputBorder(
@@ -208,10 +224,14 @@ class _RegisteringState extends State<Registering> {
               child: TextField(
                 decoration: InputDecoration(
                   prefixIcon: const Icon(Icons.lock),
-                  suffixIcon: Icon(Icons.remove_red_eye_outlined, color: Theme
-                      .of(context)
-                      .colorScheme
-                      .primary,),
+                  suffixIcon: IconButton(
+                    icon: Icon(_isObscure ? Icons.visibility : Icons.visibility_off, color: Theme.of(context).colorScheme.primary,),
+                    onPressed: (){
+                      setState(() {
+                        _isObscure = !_isObscure;
+                      });
+                    },
+                  ),
                   labelText: 'Пароль',
                   hintText: 'Пароль',
                   border: OutlineInputBorder(
@@ -222,6 +242,7 @@ class _RegisteringState extends State<Registering> {
                   labelStyle: const TextStyle(fontSize: 14),
                   hintStyle: const TextStyle(fontSize: 14),
                 ),
+                obscureText: _isObscure,
                 onChanged: (value) {
                   password = value;
                 },
@@ -232,10 +253,14 @@ class _RegisteringState extends State<Registering> {
               child: TextField(
                 decoration: InputDecoration(
                   prefixIcon: const Icon(Icons.lock),
-                  suffixIcon: Icon(Icons.remove_red_eye_outlined, color: Theme
-                      .of(context)
-                      .colorScheme
-                      .primary,),
+                  suffixIcon: IconButton(
+                    icon: Icon(_isObscureRe ? Icons.visibility : Icons.visibility_off, color: Theme.of(context).colorScheme.primary,),
+                    onPressed: (){
+                      setState(() {
+                        _isObscureRe = !_isObscureRe;
+                      });
+                    },
+                  ),
                   labelText: 'Повторите пароль',
                   hintText: 'Повторите пароль',
                   border: OutlineInputBorder(
@@ -246,6 +271,7 @@ class _RegisteringState extends State<Registering> {
                   labelStyle: const TextStyle(fontSize: 14),
                   hintStyle: const TextStyle(fontSize: 14),
                 ),
+                obscureText: _isObscureRe,
                 onChanged: (value) {
                   rePassword = value;
                 },
@@ -265,7 +291,7 @@ class _RegisteringState extends State<Registering> {
             Row(
               children: [
                 SizedBox(
-                  width: 160,
+                  width: MediaQuery.of(context).size.width * 0.4,
                   child: RadioListTile(
                     dense: true,
                     title: Text('мужчина', style: Theme
@@ -286,7 +312,7 @@ class _RegisteringState extends State<Registering> {
                   ),
                 ),
                 SizedBox(
-                  width: 160,
+                  width: MediaQuery.of(context).size.width * 0.41,
                   child: RadioListTile(
                     dense: true,
                     title: Text('женщина', style: Theme
@@ -319,6 +345,7 @@ class _RegisteringState extends State<Registering> {
                       initialDate: DateTime.now(),
                       firstDate: DateTime(1920),
                       lastDate: DateTime.now(),
+                      locale: Locale('ru'),
                     ).then((selectedDate) {
                       if (selectedDate != null) {
                         dateOfBirth = selectedDate;

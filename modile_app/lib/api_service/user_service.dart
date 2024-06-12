@@ -21,8 +21,9 @@ class UserService implements AbstractUserService {
       .toList();
 
   /// Метод регистрации пользователя в системе.
+  /// Возвращает [uid] пользователя либо `null`.
   ///
-  /// [userModel] - модель с данными о  пользователе.
+  /// [userModel] - модель представления данных пользователя.
   @override
   Future<int?> registerUser(UserModel userModel) async {
     try {
@@ -59,7 +60,7 @@ class UserService implements AbstractUserService {
 
   /// Метод активации пользователя в системе.
   ///
-  /// [userModel] - модель с данными о  пользователе.
+  /// [userModel] - модель представления данных пользователя.
   /// [code] - код с почты пользователя.
   @override
   Future<void> activateUser(UserModel userModel, String code) async {
@@ -88,8 +89,10 @@ class UserService implements AbstractUserService {
   }
 
   /// Метод авторизации пользователя в системе.
+  /// Возвращает [JwtTokenModel] либо `null`.
   ///
-  /// [userModel] - модель с данными о  пользователе.
+  /// [userName] - имя пользователя.
+  /// [password] - пароль пользователя.
   @override
   Future<JwtTokenModel?> loginUser(String userName, String password) async {
     try {
@@ -119,9 +122,9 @@ class UserService implements AbstractUserService {
     return null;
   }
 
-  /// Метод для отправки данных опроса пользователя в систему.
+  /// Метод отправки данных опроса пользователя в систему.
   ///
-  /// [surveyModel] - модель с данными об ответах пользователя на опрос.
+  /// [surveyModel] - модель представления данных опроса пользователя.
   @override
   Future<void> surveyUser(SurveyModel surveyModel) async {
     try {
@@ -171,6 +174,7 @@ class UserService implements AbstractUserService {
     }
   }
 
+  /// Метод запроса на обновление JWT-токена пользователя.
   @override
   Future<void> refreshJwtToken() async {
     try {

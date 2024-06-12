@@ -28,4 +28,18 @@ class TrainingModel {
           slug: 'training-${json['number'] as int}',
           exercises: listExerciseModelFromJson(jsonEncode(json['exercises']))
       );
+
+  @override
+  bool operator ==(Object other) {
+    bool isExercisesEquals = false;
+    TrainingModel? training = other as TrainingModel?;
+    if (training?.exercises.length != exercises.length) return false;
+    for (int i = 0; i < training!.exercises.length; i++) {
+      if (training?.exercises[i] != exercises[i]) {
+        return false;
+      }
+    }
+    return (other is TrainingModel) && other.slug == slug &&
+    other.number == number && other.name == name;
+  }
 }

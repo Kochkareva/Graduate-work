@@ -10,6 +10,8 @@ import '../storages/jwt_token_storage.dart';
 
 class PlanService {
 
+  /// Метод получения рекомендованных пользователю планов.
+  /// Возвращает Список [PlanModel] либо `null`.
   Future<List<PlanModel>?> getRecommendedPlans() async {
     try {
       await UserService().refreshJwtToken();
@@ -27,13 +29,14 @@ class PlanService {
         throw (utf8.decode(response.bodyBytes));
       }
     } catch (e) {
-      dev.log('Не удалось получить данные: ${e.toString()}');
+      dev.log('Не удалось получить данные рекомендованных пользователю планов: ${e.toString()}');
       rethrow;
     }
     return null;
   }
 
-  /// Метод получения планов - отслеживаемыех пользователем
+  /// Метод получения отслеживаемых пользователем планов.
+  /// Возвращает Список [PlanModel] либо `null`.
   Future<List<PlanModel>?> getFollowedPlans() async {
     try {
       await UserService().refreshJwtToken();
@@ -51,12 +54,41 @@ class PlanService {
         throw (utf8.decode(response.bodyBytes));
       }
     } catch (e) {
-      dev.log('Не удалось получить данные: ${e.toString()}');
+      dev.log('Не удалось получить данные отслеживаемых пользователем планов: ${e.toString()}');
       rethrow;
     }
     return null;
   }
 
+  /// Метод получения созданных пользователем планов.
+  /// Возвращает Список [PlanModel] либо `null`.
+  Future<List<PlanModel>?> getMyPlans() async {
+    try {
+      await UserService().refreshJwtToken();
+      var response = await http.get(
+        Uri.parse('${ApiConstants.baseUrl}${FitnessApiConstants.getPlans}'),
+        headers: <String, String>{
+          'Content-Type': 'application/json; charset=UTF-8',
+          'Authorization': 'Bearer ${getJwtToken()?.access}',
+        },
+      );
+      if (response.statusCode.toString().startsWith('2')) {
+        List<PlanModel> planModel = listMyPlanModelFromJson(response.body);
+        return planModel;
+      } else if (response.statusCode.toString().startsWith('4')) {
+        throw (utf8.decode(response.bodyBytes));
+      }
+    } catch (e) {
+      dev.log('Не удалось получить данные созданных пользователем планов: ${e.toString()}');
+      rethrow;
+    }
+    return null;
+  }
+
+  /// Метод получения информации о конкретном плане тренировок.
+  /// Возвращает модель [PlanModel] либо `null`.
+  ///
+  /// [slug] - уникальный идентификатор плана.
   Future<PlanModel?> getPlan(String slugPlan) async{
     try{
       await UserService().refreshJwtToken();
@@ -74,12 +106,15 @@ class PlanService {
         throw (utf8.decode(response.bodyBytes));
       }
     }catch(e){
-      dev.log('Не удалось получить данные: ${e.toString()}');
+      dev.log('Не удалось получить данные о плане тренировок: ${e.toString()}');
       rethrow;
     }
     return null;
   }
 
+  /// Метод запроса на отслеживание конкретного плана тренировок пользователем.
+  ///
+  /// [slug] - уникальный идентификатор плана.
   Future<void> followPlan(String slugPlan) async {
     try {
       await UserService().refreshJwtToken();
@@ -103,6 +138,9 @@ class PlanService {
     }
   }
 
+  /// Метод запроса на прекращение отслеживания конкретного плана тренировок пользователем.
+  ///
+  /// [slug] - уникальный идентификатор плана.
   Future<void> stopFollowPlan(String slugPlan) async {
     try {
       await UserService().refreshJwtToken();
